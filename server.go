@@ -7,7 +7,6 @@ import (
 	"log"
 	"net/http"
 	"os"
-	"reflect"
 
 	firebase "firebase.google.com/go"
 	"github.com/joho/godotenv"
@@ -32,9 +31,9 @@ func main() {
 	if err != nil {
 		log.Fatalln(err)
 	}
-	defer client.Close()
 
-	fmt.Println("client = ", reflect.TypeOf(client))
+	// fmt.Println("client = ", reflect.TypeOf(client))
+
 	// This is for retrieving all users in database
 	// iter := client.Collection("users").Documents(ctx)
 	// for {
@@ -51,44 +50,72 @@ func main() {
 	fileServer := http.FileServer(http.Dir("./static"))
 	http.Handle("/", fileServer)
 
+	type Incident struct {
+		Time  string
+		Image string
+	}
+	type Report struct {
+		Id   string
+		Data Incident
+	}
+	type User struct {
+		Name      string
+		GoogleId  string
+		Email     string
+		Phone     string
+		Incidents []Incident
+	}
+
 	http.HandleFunc("/api/user", func(w http.ResponseWriter, r *http.Request) {
 		fmt.Println("Responding to call on /api/user")
 		if r.Method == "POST" {
+			fmt.Println("Request type: POST")
 
-			// fmt.Println("Request type: POST")
+			var newUser User
+			err := json.NewDecoder(r.Body).Decode(&newUser)
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusBadRequest)
+				return
+			}
+			fmt.Println("Adding user:")
+			fmt.Println(newUser)
 
-			// // type
-			// type UserAdd struct {
-			// 	Name      string
-			// 	GoogleId  string
-			// 	Email     string
-			// 	Phone     string
-			// 	Incidents []string
-			// }
-			// var newUser UserAdd
-			// err := json.NewDecoder(r.Body).Decode(&newUser)
-			// if err != nil {
-			// 	http.Error(w, err.Error(), http.StatusBadRequest)
-			// 	return
-			// }
-			// fmt.Println("Adding user:")
-			// fmt.Println(newUser)
+			fsDocRef, fsWriteResult, err := client.Collection("users").Add(ctx, map[string]interface{}{
+				"name":      newUser.Name,
+				"googleid":  newUser.GoogleId,
+				"email":     newUser.Email,
+				"phone":     newUser.Phone,
+				"incidents": newUser.Incidents,
+			})
+			fmt.Println("New user id", fsDocRef.ID, "created at", fsWriteResult)
+			fmt.Fprintln(w, "{ \"id\":", fsDocRef.ID, "}")
+			if err != nil {
+				log.Fatalf("Failed adding user: %v", err)
+			}
+		}
 
-			// fsDocRef, fsWriteResult, err := client.Collection("users").Add(ctx, map[string]interface{}{
-			// 	"name":      newUser.Name,
-			// 	"google_id": newUser.GoogleId,
-			// 	"email":     newUser.Email,
-			// 	"phone":     newUser.Phone,
-			// })
-			// fmt.Println("New user id")
-			// fmt.Println(fsDocRef.ID)
-			// fmt.Println(fsWriteResult)
-			// if err != nil {
-			// 	log.Fatalf("Failed adding user: %v", err)
-			// }
+		if r.Method == "GET" {
+			fmt.Println("Request type: GET")
+
+		}
+
+		if r.Method == "PUT" {
+			fmt.Println("Request type: PUT")
+
+			var newReport Report
+			err := json.NewDecoder(r.Body).Decode(&newReport)
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusBadRequest)
+				return
+			}
+			fmt.Println("Received New Report:")
+			fmt.Println(newReport)
+
 		}
 
 		if r.Method == "DELETE" {
+			fmt.Println("Request type: Delete")
+
 			type UserId struct {
 				Id string
 			}
@@ -103,12 +130,9 @@ func main() {
 				// Handle any errors in an appropriate way, such as returning them.
 				log.Printf("An error has occurred: %s", err)
 			} else {
-				fmt.Println("User ID", deleteUser.Id)
-				fmt.Println("Deleted at", fsDeleteTime)
+				fmt.Println("User", deleteUser.Id, "deleted at", fsDeleteTime)
+				fmt.Fprintln(w, "User", deleteUser.Id, "deleted at", fsDeleteTime)
 			}
-			// fmt.Println(deleteUser.Id)
-			// fmt.Println("What's this?")
-			// fmt.Println(whatThis)
 		}
 	})
 
@@ -168,40 +192,6 @@ func main() {
 		log.Fatal(err)
 	}
 }
-
-// func addUser (w http.ResponseWriter, r *http.Request, client) {
-// 	fmt.Println("Request type: POST")
-
-// 	// type
-// 	type UserAdd struct {
-// 		Name      string
-// 		GoogleId  string
-// 		Email     string
-// 		Phone     string
-// 		Incidents []string
-// 	}
-// 	var newUser UserAdd
-// 	err := json.NewDecoder(r.Body).Decode(&newUser)
-// 	if err != nil {
-// 		http.Error(w, err.Error(), http.StatusBadRequest)
-// 		return
-// 	}
-// 	fmt.Println("Adding user:")
-// 	fmt.Println(newUser)
-
-// 	fsDocRef, fsWriteResult, err := client.Collection("users").Add(ctx, map[string]interface{}{
-// 		"name":      newUser.Name,
-// 		"google_id": newUser.GoogleId,
-// 		"email":     newUser.Email,
-// 		"phone":     newUser.Phone,
-// 	})
-// 	fmt.Println("New user id")
-// 	fmt.Println(fsDocRef.ID)
-// 	fmt.Println(fsWriteResult)
-// 	if err != nil {
-// 		log.Fatalf("Failed adding user: %v", err)
-// 	}
-// }
 
 // rules_version = '2';
 // service cloud.firestore {
