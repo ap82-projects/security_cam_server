@@ -16,11 +16,6 @@ import (
 	"google.golang.org/api/option"
 )
 
-// func handleRequests() {
-// 	myRouter := mux.NewRouter().StrictSlash(true)
-// 	myRouter.HandleFunc((/))
-// }
-
 func main() {
 	err := godotenv.Load()
 	if err != nil {
@@ -63,10 +58,9 @@ func main() {
 		Time  string
 		Image string
 	}
-	// type Report struct {
-	// 	Id   string
-	// 	Data Incident
-	// }
+	type WatchingUpdate struct {
+		Watching bool
+	}
 	type User struct {
 		Name      string
 		GoogleId  string
@@ -127,6 +121,40 @@ func main() {
 
 		}
 
+
+		if r.Method == "DELETE" {
+			log.Println("Request type: DELETE")
+			userId := r.FormValue("id")
+
+			log.Println("Deleting user ID", userId)
+			fsDeleteTime, err := client.Collection("users").Doc(userId).Delete(ctx)
+			if err != nil {
+				// Handle any errors in an appropriate way, such as returning them.
+				log.Println("An error has occurred:", err)
+			} else {
+				log.Println("User", userId, "deleted at", fsDeleteTime)
+			}
+		}
+	})
+
+	// http.HandleFunc("/hello", func(w http.ResponseWriter, r *http.Request) {
+	// 	log.Println("Responding to call on /hello")
+	// 	if r.URL.Path != "/hello" {
+	// 		http.Error(w, "404 not found. Try again :(", http.StatusNotFound)
+	// 		return
+	// 	}
+
+	// 	if r.Method != "GET" {
+	// 		http.Error(w, "Method is not supported. Don't be so greedy.", http.StatusNotFound)
+	// 		return
+	// 	}
+
+	// 	fmt.Fprintf(w, "Hello There!")
+	// })
+
+	http.HandleFunc("/api/user/incident", func(w http.ResponseWriter, r *http.Request) {
+		log.Println("Responding to call on /api/user/incident")
+
 		if r.Method == "PUT" {
 			log.Println("Request type: PUT")
 
@@ -167,39 +195,6 @@ func main() {
 		}
 
 		if r.Method == "DELETE" {
-			log.Println("Request type: DELETE")
-			userId := r.FormValue("id")
-
-			log.Println("Deleting user ID", userId)
-			fsDeleteTime, err := client.Collection("users").Doc(userId).Delete(ctx)
-			if err != nil {
-				// Handle any errors in an appropriate way, such as returning them.
-				log.Println("An error has occurred:", err)
-			} else {
-				log.Println("User", userId, "deleted at", fsDeleteTime)
-			}
-		}
-	})
-
-	http.HandleFunc("/hello", func(w http.ResponseWriter, r *http.Request) {
-		log.Println("Responding to call on /hello")
-		if r.URL.Path != "/hello" {
-			http.Error(w, "404 not found. Try again :(", http.StatusNotFound)
-			return
-		}
-
-		if r.Method != "GET" {
-			http.Error(w, "Method is not supported. Don't be so greedy.", http.StatusNotFound)
-			return
-		}
-
-		fmt.Fprintf(w, "Hello There!")
-	})
-
-	http.HandleFunc("/api/user/incident", func(w http.ResponseWriter, r *http.Request) {
-		log.Println("Responding to call on /api/user/incident")
-
-		if r.Method == "DELETE" {
 			userId := r.FormValue("id")
 			incidentTime := r.FormValue("time")
 
@@ -236,6 +231,34 @@ func main() {
 		}
 	})
 
+	http.HandleFunc("/api/user/watching", func(w http.ResponseWriter, r *http.Request) {
+		log.Println("Responding to call on /api/user/watching")
+
+		if r.Method == "PUT" {
+			log.Println("Request type: PUT")
+
+			userId := r.FormValue("id")
+			var currently WatchingUpdate
+			err := json.NewDecoder(r.Body).Decode(&currently)
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusBadRequest)
+				return
+			}
+			log.Println("User", userId, "current watching status:", currently.Watching)
+			log.Println("Updating user data")
+			_, err = client.Collection("users").Doc(userId).Update(ctx, []firestore.Update{
+				{
+					Path:  "watching",
+					Value: currently.Watching,
+				},
+			})
+			if err != nil {
+				// Handle any errors in an appropriate way, such as returning them.
+				log.Println("An error has occurred:", err)
+			}
+		}
+	})
+
 	http.HandleFunc("/form", func(w http.ResponseWriter, r *http.Request) {
 		log.Println("Responding to call on /form")
 		if err := r.ParseForm(); err != nil {
@@ -244,33 +267,6 @@ func main() {
 		}
 
 		fmt.Fprintf(w, "POST request successful\n")
-
-		////////////////////////////////////////////////////////////
-		// The Following Block pulls form the body of the request //
-		type NameAdd struct {
-			Name    string
-			Address string
-		}
-		var na NameAdd
-		err := json.NewDecoder(r.Body).Decode(&na)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusBadRequest)
-			return
-		}
-		fmt.Fprint(w, "name: ", na.Name, "\n")
-		fmt.Fprint(w, "address: ", na.Address, "\n")
-		////////////////////////////////////////////////////////////
-
-		////////////////////////////////////////////////////////////
-		// The following block pulls from params of the request   //
-		// (http://...?name=myname&address=nyaddress)             //
-		name := r.FormValue("name")
-		address := r.FormValue("address")
-
-		fmt.Fprintf(w, "Name = %s\n", name)
-		fmt.Fprintf(w, "Address = %s\n", address)
-		////////////////////////////////////////////////////////////
-	})
 
 	log.Println("Starting server at port 8080")
 	if err := http.ListenAndServe(":8080", nil); err != nil {
