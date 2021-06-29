@@ -40,8 +40,6 @@ func main() {
 		log.Fatalln(err)
 	}
 
-	// fmt.Println("client = ", reflect.TypeOf(client))
-
 	// This is for retrieving all users in database
 	// iter := client.Collection("users").Documents(ctx)
 	// for {
@@ -75,12 +73,13 @@ func main() {
 		Email     string
 		Phone     string
 		Incidents []Incident
+		Watching  bool
 	}
 
 	http.HandleFunc("/api/user", func(w http.ResponseWriter, r *http.Request) {
-		fmt.Println("Responding to call on /api/user")
+		log.Println("Responding to call on /api/user")
 		if r.Method == "POST" {
-			fmt.Println("Request type: POST")
+			log.Println("Request type: POST")
 
 			var newUser User
 			err := json.NewDecoder(r.Body).Decode(&newUser)
@@ -88,8 +87,8 @@ func main() {
 				http.Error(w, err.Error(), http.StatusBadRequest)
 				return
 			}
-			fmt.Println("Adding user:")
-			fmt.Println(newUser)
+			log.Println("Adding user:")
+			log.Println(newUser)
 
 			fsDocRef, fsWriteResult, err := client.Collection("users").Add(ctx, map[string]interface{}{
 				"name":      newUser.Name,
@@ -97,8 +96,9 @@ func main() {
 				"email":     newUser.Email,
 				"phone":     newUser.Phone,
 				"incidents": newUser.Incidents,
+				"watching":  newUser.Watching,
 			})
-			fmt.Println("New user id", fsDocRef.ID, "created at", fsWriteResult)
+			log.Println("New user id", fsDocRef.ID, "created at", fsWriteResult)
 			fmt.Fprintln(w, "{ \"id\":", fsDocRef.ID, "}")
 			if err != nil {
 				log.Fatalf("Failed adding user: %v", err)
@@ -106,34 +106,29 @@ func main() {
 		}
 
 		if r.Method == "GET" {
-			fmt.Println("Request type: GET")
+			log.Println("Request type: GET")
 			userGoogleId := r.FormValue("id")
-			fmt.Println("Retrieving user with Google ID", userGoogleId)
+			log.Println("Retrieving user with Google ID", userGoogleId)
 			query := client.Collection("users").Where("googleid", "==", userGoogleId).Documents(ctx)
 			for {
 				doc, err := query.Next()
 				if err == iterator.Done {
 					break
 				}
-				// if err != nil {
-				//         return err
-				// }
-				// fmt.Println(doc.Data())
-				// fmt.Fprintln(w, doc.Data())
+
 				user, err := json.Marshal(doc.Data())
 				if err != nil {
-					fmt.Println("Error:", err)
+					log.Println("Error:", err)
 				}
-				fmt.Println("User found. Sending response.")
-				fmt.Println(string(user))
+				log.Println("User found. Sending response.")
+				log.Println(string(user))
 				fmt.Fprintln(w, string(user))
 			}
-			// fmt.Fprintln(w, "User ID = ", userId)
-			// fmt.Fprintln(w, query)
+
 		}
 
 		if r.Method == "PUT" {
-			fmt.Println("Request type: PUT")
+			log.Println("Request type: PUT")
 
 			var newIncident Incident
 			err := json.NewDecoder(r.Body).Decode(&newIncident)
@@ -141,10 +136,10 @@ func main() {
 				http.Error(w, err.Error(), http.StatusBadRequest)
 				return
 			}
-			fmt.Println("Received New Incident:")
-			fmt.Println(newIncident)
+			log.Println("Received New Incident:")
+			log.Println(newIncident)
 
-			fmt.Println("Retrieving User Data")
+			log.Println("Retrieving User Data")
 			userId := r.FormValue("id")
 			query, errQ := client.Collection("users").Doc(userId).Get(ctx)
 			if errQ != nil {
@@ -153,13 +148,11 @@ func main() {
 
 			var currentUser User
 			mapstructure.Decode(query.Data(), &currentUser)
-			fmt.Println(currentUser)
-			fmt.Println("Updating User Data")
+			log.Println(currentUser)
+			log.Println("Updating User Data")
 			currentUser.Incidents = append(currentUser.Incidents, newIncident)
-			// var currentUser User
-			// err := jsonNewDecoder(query.)
-			// updatedIncidents := currentUser.Incidents
-			fmt.Println(currentUser)
+
+			log.Println(currentUser)
 
 			_, err = client.Collection("users").Doc(userId).Update(ctx, []firestore.Update{
 				{
@@ -169,33 +162,27 @@ func main() {
 			})
 			if err != nil {
 				// Handle any errors in an appropriate way, such as returning them.
-				log.Printf("An error has occurred: %s", err)
+				log.Println("An error has occurred:", err)
 			}
 		}
 
 		if r.Method == "DELETE" {
-			fmt.Println("Request type: DELETE")
+			log.Println("Request type: DELETE")
 			userId := r.FormValue("id")
-			// var deleteUser UserId
-			// err := json.NewDecoder(r.Body).Decode(&deleteUser)
-			// if err != nil {
-			// http.Error(w, err.Error(), http.StatusBadRequest)
-			// return
-			// }
-			fmt.Println("Deleting user ID", userId)
+
+			log.Println("Deleting user ID", userId)
 			fsDeleteTime, err := client.Collection("users").Doc(userId).Delete(ctx)
 			if err != nil {
 				// Handle any errors in an appropriate way, such as returning them.
-				log.Printf("An error has occurred: %s", err)
+				log.Println("An error has occurred:", err)
 			} else {
-				fmt.Println("User", userId, "deleted at", fsDeleteTime)
-				// fmt.Fprintln(w, "User", userId, "deleted at", fsDeleteTime)
+				log.Println("User", userId, "deleted at", fsDeleteTime)
 			}
 		}
 	})
 
 	http.HandleFunc("/hello", func(w http.ResponseWriter, r *http.Request) {
-		fmt.Printf("Responding to call on /hello\n")
+		log.Println("Responding to call on /hello")
 		if r.URL.Path != "/hello" {
 			http.Error(w, "404 not found. Try again :(", http.StatusNotFound)
 			return
@@ -209,8 +196,48 @@ func main() {
 		fmt.Fprintf(w, "Hello There!")
 	})
 
+	http.HandleFunc("/api/user/incident", func(w http.ResponseWriter, r *http.Request) {
+		log.Println("Responding to call on /api/user/incident")
+
+		if r.Method == "DELETE" {
+			userId := r.FormValue("id")
+			incidentTime := r.FormValue("time")
+
+			log.Println("Retrieving data for user ID", userId)
+			query, errQ := client.Collection("users").Doc(userId).Get(ctx)
+			if errQ != nil {
+
+			}
+
+			var currentUser User
+			mapstructure.Decode(query.Data(), &currentUser)
+			log.Println(currentUser)
+			log.Println("Updating User Data")
+
+			i := 0
+			for _, incident := range currentUser.Incidents {
+				if incident.Time != incidentTime {
+					currentUser.Incidents[i] = incident
+					i++
+				}
+			}
+			currentUser.Incidents = currentUser.Incidents[:i]
+
+			_, err = client.Collection("users").Doc(userId).Update(ctx, []firestore.Update{
+				{
+					Path:  "incidents",
+					Value: currentUser.Incidents,
+				},
+			})
+			if err != nil {
+				// Handle any errors in an appropriate way, such as returning them.
+				log.Println("An error has occurred:", err)
+			}
+		}
+	})
+
 	http.HandleFunc("/form", func(w http.ResponseWriter, r *http.Request) {
-		fmt.Printf("Responding to call on /form\n")
+		log.Println("Responding to call on /form")
 		if err := r.ParseForm(); err != nil {
 			fmt.Fprintf(w, "ParseForm() err: %v", err)
 			return
@@ -245,26 +272,8 @@ func main() {
 		////////////////////////////////////////////////////////////
 	})
 
-	// http.HandleFunc("/api/user/{id}", func(w http.ResponseWriter, r *http.Request) {
-	// 	fmt.Println("Responding to call on /api/user/:id")
-	// 	if r.Method == "GET" {
-	// 		fmt.Println("Request type: GET")
-	// 		// id := r.
-
-	// 	}
-	// })
-
-	fmt.Printf("Starting server at port 8080\n")
+	log.Println("Starting server at port 8080")
 	if err := http.ListenAndServe(":8080", nil); err != nil {
 		log.Fatal(err)
 	}
 }
-
-// rules_version = '2';
-// service cloud.firestore {
-//   match /databases/{database}/documents {
-//     match /{document=**} {
-//       allow read, write: if false;
-//     }
-//   }
-// }
