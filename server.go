@@ -10,8 +10,14 @@ import (
 
 	firebase "firebase.google.com/go"
 	"github.com/joho/godotenv"
+	"google.golang.org/api/iterator"
 	"google.golang.org/api/option"
 )
+
+// func handleRequests() {
+// 	myRouter := mux.NewRouter().StrictSlash(true)
+// 	myRouter.HandleFunc((/))
+// }
 
 func main() {
 	err := godotenv.Load()
@@ -50,6 +56,9 @@ func main() {
 	fileServer := http.FileServer(http.Dir("./static"))
 	http.Handle("/", fileServer)
 
+	type UserId struct {
+		Id string
+	}
 	type Incident struct {
 		Time  string
 		Image string
@@ -96,7 +105,29 @@ func main() {
 
 		if r.Method == "GET" {
 			fmt.Println("Request type: GET")
-
+			userGoogleId := r.FormValue("id")
+			fmt.Println("Retrieving user with Google ID", userGoogleId)
+			query := client.Collection("users").Where("googleid", "==", userGoogleId).Documents(ctx)
+			for {
+				doc, err := query.Next()
+				if err == iterator.Done {
+					break
+				}
+				// if err != nil {
+				//         return err
+				// }
+				// fmt.Println(doc.Data())
+				// fmt.Fprintln(w, doc.Data())
+				user, err := json.Marshal(doc.Data())
+				if err != nil {
+					fmt.Println("Error:", err)
+				}
+				fmt.Println("User found. Sending response.")
+				fmt.Println(string(user))
+				fmt.Fprintln(w, string(user))
+			}
+			// fmt.Fprintln(w, "User ID = ", userId)
+			// fmt.Fprintln(w, query)
 		}
 
 		if r.Method == "PUT" {
@@ -114,24 +145,22 @@ func main() {
 		}
 
 		if r.Method == "DELETE" {
-			fmt.Println("Request type: Delete")
-
-			type UserId struct {
-				Id string
-			}
-			var deleteUser UserId
-			err := json.NewDecoder(r.Body).Decode(&deleteUser)
-			if err != nil {
-				http.Error(w, err.Error(), http.StatusBadRequest)
-				return
-			}
-			fsDeleteTime, err := client.Collection("users").Doc(deleteUser.Id).Delete(ctx)
+			fmt.Println("Request type: DELETE")
+			userId := r.FormValue("id")
+			// var deleteUser UserId
+			// err := json.NewDecoder(r.Body).Decode(&deleteUser)
+			// if err != nil {
+			// http.Error(w, err.Error(), http.StatusBadRequest)
+			// return
+			// }
+			fmt.Println("Deleting user ID", userId)
+			fsDeleteTime, err := client.Collection("users").Doc(userId).Delete(ctx)
 			if err != nil {
 				// Handle any errors in an appropriate way, such as returning them.
 				log.Printf("An error has occurred: %s", err)
 			} else {
-				fmt.Println("User", deleteUser.Id, "deleted at", fsDeleteTime)
-				fmt.Fprintln(w, "User", deleteUser.Id, "deleted at", fsDeleteTime)
+				fmt.Println("User", userId, "deleted at", fsDeleteTime)
+				// fmt.Fprintln(w, "User", userId, "deleted at", fsDeleteTime)
 			}
 		}
 	})
@@ -186,6 +215,15 @@ func main() {
 		fmt.Fprintf(w, "Address = %s\n", address)
 		////////////////////////////////////////////////////////////
 	})
+
+	// http.HandleFunc("/api/user/{id}", func(w http.ResponseWriter, r *http.Request) {
+	// 	fmt.Println("Responding to call on /api/user/:id")
+	// 	if r.Method == "GET" {
+	// 		fmt.Println("Request type: GET")
+	// 		// id := r.
+
+	// 	}
+	// })
 
 	fmt.Printf("Starting server at port 8080\n")
 	if err := http.ListenAndServe(":8080", nil); err != nil {
