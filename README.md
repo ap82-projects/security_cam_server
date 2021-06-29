@@ -4,47 +4,47 @@
 
 ### POST /api/user
 Creates a new user.  The following format is passed to the body
-{
+\{
   "email": email address as string
   "googleid: google id as string
-  "incidents": []
+  "incidents": \[\]
   "name": name as string
   "phone": phone number as string
   "watching": false
-}
+\}
 
 It returns the newly created user's id in the following format
-{ "id": id as string}
+\{ "id": id as string}
 
 ### GET /api/user?id=<"google id as string">
 If a user with the specified google id exists, their data is returned in the following format
-{
+\{
   "email": email address as string
   "googleid": google id as string
-  "incidents": [{
+  "incidents": \[\{
                  "time": time of incident as string
                  "image": image taken as string
-               }],
+               \}\],
   "name": name as string
   "phone": phone number as string
   "watching": status of whether the user is watching as a boolean
-}
+\}
 
 ### DELETE /api/user?id=<"user id as string">
 Deletes specified user from database
 
 ### PUT /api/user/incident?id=<"user id as string">
 Used to add incidents to the user's data.  Takes and object in the following format
-{
+\{
   "time": time of incident as string
   "image": image taken as string
-}
+\}
 
 ### DELETE /api/user/incident?id=<"user id as string">&time=<"time of incident as string">
 Deletes specified incident from users data
 
 ### /api/user/watching?id=<"user id as string">
 Sets whether the user is currently trying to watch the live camera feed.  Can be set with the following.
-{
+\{
   "watching": boolean representing whether the user is watching or not
-}
+\}
