@@ -8,8 +8,10 @@ import (
 	"net/http"
 	"os"
 
+	"cloud.google.com/go/firestore"
 	firebase "firebase.google.com/go"
 	"github.com/joho/godotenv"
+	"github.com/mitchellh/mapstructure"
 	"google.golang.org/api/iterator"
 	"google.golang.org/api/option"
 )
@@ -63,10 +65,10 @@ func main() {
 		Time  string
 		Image string
 	}
-	type Report struct {
-		Id   string
-		Data Incident
-	}
+	// type Report struct {
+	// 	Id   string
+	// 	Data Incident
+	// }
 	type User struct {
 		Name      string
 		GoogleId  string
@@ -133,15 +135,42 @@ func main() {
 		if r.Method == "PUT" {
 			fmt.Println("Request type: PUT")
 
-			var newReport Report
-			err := json.NewDecoder(r.Body).Decode(&newReport)
+			var newIncident Incident
+			err := json.NewDecoder(r.Body).Decode(&newIncident)
 			if err != nil {
 				http.Error(w, err.Error(), http.StatusBadRequest)
 				return
 			}
-			fmt.Println("Received New Report:")
-			fmt.Println(newReport)
+			fmt.Println("Received New Incident:")
+			fmt.Println(newIncident)
 
+			fmt.Println("Retrieving User Data")
+			userId := r.FormValue("id")
+			query, errQ := client.Collection("users").Doc(userId).Get(ctx)
+			if errQ != nil {
+
+			}
+
+			var currentUser User
+			mapstructure.Decode(query.Data(), &currentUser)
+			fmt.Println(currentUser)
+			fmt.Println("Updating User Data")
+			currentUser.Incidents = append(currentUser.Incidents, newIncident)
+			// var currentUser User
+			// err := jsonNewDecoder(query.)
+			// updatedIncidents := currentUser.Incidents
+			fmt.Println(currentUser)
+
+			_, err = client.Collection("users").Doc(userId).Update(ctx, []firestore.Update{
+				{
+					Path:  "incidents",
+					Value: currentUser.Incidents,
+				},
+			})
+			if err != nil {
+				// Handle any errors in an appropriate way, such as returning them.
+				log.Printf("An error has occurred: %s", err)
+			}
 		}
 
 		if r.Method == "DELETE" {
