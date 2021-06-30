@@ -23,6 +23,7 @@ import (
 	"github.com/graarh/golang-socketio/transport"
 	"github.com/joho/godotenv"
 	"github.com/mitchellh/mapstructure"
+	"github.com/rs/cors"
 )
 
 func main() {
@@ -65,11 +66,30 @@ func main() {
 		c.Leave("Room")
 	})
 
-	// chat socket
-	Server.On("/chat", func(c *gosocketio.Channel, message Message) string {
-		fmt.Println(message.Text)
-		c.BroadcastTo("Room", "/message", message.Text)
-		return "message sent successfully."
+	// type Message struct {
+	// 	Id string `json:"id"`
+	// 	Watching string `json:"watching"`
+	// }
+
+	// //handle custom event
+	// server.On("send", func(c *gosocketio.Channel, msg Message) string {
+	// 	//send event to all in room
+	// 	c.BroadcastTo("Room", "message", msg)
+	// 	return "OK"
+	// })
+
+	// watch socket
+	// Server.On("/watch", func(c *gosocketio.Channel, message Message) string {
+	// 	fmt.Println(message.Text)
+	// 	c.BroadcastTo("Room", "/message", message.Text)
+	// 	return "message sent successfully."
+	// })
+
+	// watch event
+	Server.On("watch", func(c *gosocketio.Channel, msg Message) string {
+		//send event to all in room
+		c.BroadcastTo("Room", "message", msg)
+		return "OK"
 	})
 
 	router.Handle("/socket.io/", Server)
@@ -120,6 +140,10 @@ func main() {
 		Image string
 	}
 	type WatchingUpdate struct {
+		Watching bool
+	}
+	type WatchingMessageToCamera struct {
+		Id       string
 		Watching bool
 	}
 	type User struct {
@@ -303,6 +327,11 @@ func main() {
 			if err != nil {
 				log.Println("An error has occurred:", err)
 			}
+			log.Println("Notifying Remote Camera")
+			var message WatchingMessageToCamera
+			message.Id = userId
+			message.Watching = currently.Watching
+			Server.BroadcastTo("Room", "watch", message)
 		}
 	})
 
@@ -317,16 +346,16 @@ func main() {
 	// http.Handle("/", fileServer)
 
 	// Extra CORS rules just in case
-	// handler := cors.Default().Handler(router)
-	// c := cors.New(cors.Options{
-	// 	AllowedOrigins:   []string{"*"},
-	// 	AllowCredentials: true,
-	// })
-	// handler = c.Handler(handler)
+	handler := cors.Default().Handler(router)
+	c := cors.New(cors.Options{
+		AllowedOrigins:   []string{"*"},
+		AllowCredentials: true,
+	})
+	handler = c.Handler(handler)
 
 	fmt.Println("Server Started at http://localhost:8080")
-	// if err := http.ListenAndServe(":8080", handler); err != nil {  //for use with above CORS rules
-	if err := http.ListenAndServe(":8080", router); err != nil {
+	if err := http.ListenAndServe(":8080", handler); err != nil { // for use with above CORS rules
+		// if err := http.ListenAndServe(":8080", router); err != nil {  // for when not using the above CORS rules
 		log.Fatal(err)
 	}
 }
