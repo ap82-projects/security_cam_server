@@ -1,6 +1,8 @@
 package main
 
 import (
+	// "context"
+	// "encoding/json"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -8,20 +10,20 @@ import (
 	"net/http"
 	"os"
 
+	// "os"
+
 	"cloud.google.com/go/firestore"
 	firebase "firebase.google.com/go"
-	socketio "github.com/googollee/go-socket.io"
-	"github.com/joho/godotenv"
-	"github.com/mitchellh/mapstructure"
-	"github.com/rs/cors"
 	"google.golang.org/api/iterator"
 	"google.golang.org/api/option"
-)
 
-// func handleRequests() {
-// 	myRouter := mux.NewRouter().StrictSlash(true)
-// 	myRouter.HandleFunc((/))
-// }
+	// "github.com/gorilla/handlers"
+	"github.com/gorilla/mux"
+	gosocketio "github.com/graarh/golang-socketio"
+	"github.com/graarh/golang-socketio/transport"
+	"github.com/joho/godotenv"
+	"github.com/mitchellh/mapstructure"
+)
 
 func main() {
 	err := godotenv.Load()
@@ -29,56 +31,54 @@ func main() {
 		log.Fatal("Error loading .env file")
 	}
 
-	// socket.io
-
-	mux := http.NewServeMux()
-	mux.HandleFunc("/socket", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		w.Write([]byte("{\"hello\": \"world\"}"))
+	router := mux.NewRouter()
+	router.Methods("OPTIONS").HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Access-Control-Allow-Origin", "")
+		w.Header().Set("Access-Control-Allow-Methods", "POST, GET, OPTIONS, PUT,DELETE")
+		w.Header().Set("Access-Control-Allow-Headers", "Accept, Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization, Access-Control-Request-Headers, Access-Control-Request-Method, Connection, Host, Origin, User-Agent, Referer, Cache-Control, X-header")
 	})
 
-	server := socketio.NewServer(nil)
+	/////////////////////////////////////////////////////////////////////////////
+	//*************************************************************************//
+	//****************************** Socket.io ********************************//
+	//*************************************************************************//
+	/////////////////////////////////////////////////////////////////////////////
 
-	// server.OnConnect("/", func(s socketio.Conn) error {
-	server.OnConnect("/socketio", func(s socketio.Conn) error {
-		s.SetContext("")
-		fmt.Println("Socket connected:", s.ID())
-		return nil
+	type Message struct {
+		Text string
+	}
+
+	Server := gosocketio.NewServer(transport.GetDefaultWebsocketTransport())
+	fmt.Println("Socket Initialize...")
+
+	// socket connection
+	Server.On(gosocketio.OnConnection, func(c *gosocketio.Channel) {
+		fmt.Println("Connected", c.Id())
+		c.Join("Room")
 	})
 
-	// server.OnEvent("/", "notice", func(s socketio.Conn, msg string) {
-	server.OnEvent("/socketio", "notice", func(s socketio.Conn, msg string) {
-		fmt.Println("notice:", msg)
-		s.Emit("reply", "have "+msg)
+	// socket disconnection
+	Server.On(gosocketio.OnDisconnection, func(c *gosocketio.Channel) {
+		fmt.Println("Disconnected", c.Id())
+
+		// handles when someone closes the tab
+		c.Leave("Room")
 	})
 
-	// server.OnEvent("/chat", "msg", func(s socketio.Conn, msg string) string {
-	server.OnEvent("/socketio", "msg", func(s socketio.Conn, msg string) string {
-		s.SetContext(msg)
-		return "recv " + msg
+	// chat socket
+	Server.On("/chat", func(c *gosocketio.Channel, message Message) string {
+		fmt.Println(message.Text)
+		c.BroadcastTo("Room", "/message", message.Text)
+		return "message sent successfully."
 	})
 
-	// server.OnEvent("/", "bye", func(s socketio.Conn) string {
-	server.OnEvent("/socketio", "bye", func(s socketio.Conn) string {
-		last := s.Context().(string)
-		s.Emit("bye", last)
-		s.Close()
-		return last
-	})
+	router.Handle("/socket.io/", Server)
 
-	server.OnError("/", func(s socketio.Conn, e error) {
-		fmt.Println("meet error:", e)
-	})
-
-	server.OnDisconnect("/", func(s socketio.Conn, reason string) {
-		fmt.Println("closed", reason)
-	})
-
-	go server.Serve()
-	defer server.Close()
-
-	// http.Handle("/socket.io/", server)
-	mux.Handle("/", server)
+	/////////////////////////////////////////////////////////////////////////////
+	//*************************************************************************//
+	//********************** Firestorm Authentication *************************//
+	//*************************************************************************//
+	/////////////////////////////////////////////////////////////////////////////
 
 	credentialsJson := []byte(os.Getenv("FIRESTORE_JSON"))
 	ctx := context.Background()
@@ -106,8 +106,11 @@ func main() {
 	// 	fmt.Println(doc.Data())
 	// }
 
-	fileServer := http.FileServer(http.Dir("./static"))
-	http.Handle("/", fileServer)
+	/////////////////////////////////////////////////////////////////////////////
+	//*************************************************************************//
+	//******************** Structs for interacting with DB ********************//
+	//*************************************************************************//
+	/////////////////////////////////////////////////////////////////////////////
 
 	type UserId struct {
 		Id string
@@ -128,7 +131,13 @@ func main() {
 		Watching  bool
 	}
 
-	mux.HandleFunc("/api/user", func(w http.ResponseWriter, r *http.Request) {
+	/////////////////////////////////////////////////////////////////////////////
+	//*************************************************************************//
+	//************************** REST API Endpoints ***************************//
+	//*************************************************************************//
+	/////////////////////////////////////////////////////////////////////////////
+
+	router.HandleFunc("/api/user", func(w http.ResponseWriter, r *http.Request) {
 		log.Println("Responding to call on /api/user")
 		if r.Method == "POST" {
 			log.Println("Request type: POST")
@@ -186,7 +195,6 @@ func main() {
 			log.Println("Deleting user ID", userId)
 			fsDeleteTime, err := client.Collection("users").Doc(userId).Delete(ctx)
 			if err != nil {
-				// Handle any errors in an appropriate way, such as returning them.
 				log.Println("An error has occurred:", err)
 			} else {
 				log.Println("User", userId, "deleted at", fsDeleteTime)
@@ -194,22 +202,7 @@ func main() {
 		}
 	})
 
-	// http.HandleFunc("/hello", func(w http.ResponseWriter, r *http.Request) {
-	// 	log.Println("Responding to call on /hello")
-	// 	if r.URL.Path != "/hello" {
-	// 		http.Error(w, "404 not found. Try again :(", http.StatusNotFound)
-	// 		return
-	// 	}
-
-	// 	if r.Method != "GET" {
-	// 		http.Error(w, "Method is not supported. Don't be so greedy.", http.StatusNotFound)
-	// 		return
-	// 	}
-
-	// 	fmt.Fprintf(w, "Hello There!")
-	// })
-
-	mux.HandleFunc("/api/user/incident", func(w http.ResponseWriter, r *http.Request) {
+	router.HandleFunc("/api/user/incident", func(w http.ResponseWriter, r *http.Request) {
 		log.Println("Responding to call on /api/user/incident")
 
 		if r.Method == "PUT" {
@@ -246,7 +239,6 @@ func main() {
 				},
 			})
 			if err != nil {
-				// Handle any errors in an appropriate way, such as returning them.
 				log.Println("An error has occurred:", err)
 			}
 		}
@@ -282,13 +274,12 @@ func main() {
 				},
 			})
 			if err != nil {
-				// Handle any errors in an appropriate way, such as returning them.
 				log.Println("An error has occurred:", err)
 			}
 		}
 	})
 
-	mux.HandleFunc("/api/user/watching", func(w http.ResponseWriter, r *http.Request) {
+	router.HandleFunc("/api/user/watching", func(w http.ResponseWriter, r *http.Request) {
 		log.Println("Responding to call on /api/user/watching")
 
 		if r.Method == "PUT" {
@@ -310,60 +301,32 @@ func main() {
 				},
 			})
 			if err != nil {
-				// Handle any errors in an appropriate way, such as returning them.
 				log.Println("An error has occurred:", err)
 			}
 		}
 	})
 
-	mux.HandleFunc("/form", func(w http.ResponseWriter, r *http.Request) {
-		log.Println("Responding to call on /form")
-		if err := r.ParseForm(); err != nil {
-			fmt.Fprintf(w, "ParseForm() err: %v", err)
-			return
-		}
+	// /////////////////////////////////////////////////////////////////////////////
+	// //*************************************************************************//
+	// //**************** Server Initialization and Extra Stuff ******************//
+	// //*************************************************************************//
+	// /////////////////////////////////////////////////////////////////////////////
 
-		fmt.Fprintf(w, "POST request successful\n")
+	// For serving static files
+	// fileServer := http.FileServer(http.Dir("./static"))
+	// http.Handle("/", fileServer)
 
-		////////////////////////////////////////////////////////////
-		// The Following Block pulls form the body of the request //
-		type NameAdd struct {
-			Name    string
-			Address string
-		}
-		var na NameAdd
-		err := json.NewDecoder(r.Body).Decode(&na)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusBadRequest)
-			return
-		}
-		fmt.Fprint(w, "name: ", na.Name, "\n")
-		fmt.Fprint(w, "address: ", na.Address, "\n")
-		////////////////////////////////////////////////////////////
+	// Extra CORS rules just in case
+	// handler := cors.Default().Handler(router)
+	// c := cors.New(cors.Options{
+	// 	AllowedOrigins:   []string{"*"},
+	// 	AllowCredentials: true,
+	// })
+	// handler = c.Handler(handler)
 
-		////////////////////////////////////////////////////////////
-		// The following block pulls from params of the request   //
-		// (http://...?name=myname&address=nyaddress)             //
-		name := r.FormValue("name")
-		address := r.FormValue("address")
-
-		fmt.Fprintf(w, "Name = %s\n", name)
-		fmt.Fprintf(w, "Address = %s\n", address)
-		////////////////////////////////////////////////////////////
-	})
-
-	handler := cors.Default().Handler(mux)
-
-	c := cors.New(cors.Options{
-		AllowedOrigins:   []string{"*"},
-		AllowCredentials: true,
-	})
-
-	handler = c.Handler(handler)
-
-	log.Println("Starting server at port 8080")
-	// handler := cors.Default().Handler(http)
-	if err := http.ListenAndServe(":8080", handler); err != nil {
+	fmt.Println("Server Started at http://localhost:8080")
+	// if err := http.ListenAndServe(":8080", handler); err != nil {  //for use with above CORS rules
+	if err := http.ListenAndServe(":8080", router); err != nil {
 		log.Fatal(err)
 	}
 }
