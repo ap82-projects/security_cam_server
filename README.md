@@ -13,11 +13,13 @@ Creates a new user.  The following format is passed to the body
   "watching": false
 \}
 
-It returns the newly created user's id in the following format
-\{ "id": id as string}
+It returns the newly created user's document id in the following format
+\{
+   "id": document id as string
+\}
 
-### GET /api/user?id=<"google id as string">
-If a user with the specified google id exists, their data is returned in the following format
+### GET /api/user?id=<"user document id as string">
+Returns specified user's data in the following format
 \{
   "email": email address as string
   "googleid": google id as string
@@ -32,6 +34,13 @@ If a user with the specified google id exists, their data is returned in the fol
 
 ### DELETE /api/user?id=<"user id as string">
 Deletes specified user from database
+
+### GET /api/user/google?id=<"google id as string">
+If a user with the specified google id exists, document id
+is returned in the following format
+\{
+  "id": document id as string
+\}
 
 ### PUT /api/user/incident?id=<"user id as string">
 Used to add incidents to the user's data.  Takes and object in the following format

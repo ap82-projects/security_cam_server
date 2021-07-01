@@ -33,11 +33,11 @@ func main() {
 	}
 
 	router := mux.NewRouter()
-	router.Methods("OPTIONS").HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Access-Control-Allow-Origin", "")
-		w.Header().Set("Access-Control-Allow-Methods", "POST, GET, OPTIONS, PUT,DELETE")
-		w.Header().Set("Access-Control-Allow-Headers", "Accept, Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization, Access-Control-Request-Headers, Access-Control-Request-Method, Connection, Host, Origin, User-Agent, Referer, Cache-Control, X-header")
-	})
+	// router.Methods("OPTIONS").HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	// 	w.Header().Set("Access-Control-Allow-Origin", "*")
+	// 	w.Header().Set("Access-Control-Allow-Methods", "POST, GET, OPTIONS, PUT, DELETE")
+	// 	w.Header().Set("Access-Control-Allow-Headers", "Accept, Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization, Access-Control-Request-Headers, Access-Control-Request-Method, Connection, Host, Origin, User-Agent, Referer, Cache-Control, X-header")
+	// })
 
 	/////////////////////////////////////////////////////////////////////////////
 	//*************************************************************************//
@@ -192,24 +192,21 @@ func main() {
 
 		if r.Method == "GET" {
 			log.Println("Request type: GET")
-			userGoogleId := r.FormValue("id")
-			log.Println("Retrieving user with Google ID", userGoogleId)
-			query := client.Collection("users").Where("googleid", "==", userGoogleId).Documents(ctx)
-			for {
-				doc, err := query.Next()
-				if err == iterator.Done {
-					break
-				}
+			userDocId := r.FormValue("id")
+			log.Println("Retrieving user with Document ID", userDocId)
+			query, errQ := client.Collection("users").Doc(userDocId).Get(ctx)
+			if errQ != nil {
 
-				user, err := json.Marshal(doc.Data())
-				if err != nil {
-					log.Println("Error:", err)
-				}
-				log.Println("User found. Sending response.")
-				log.Println(string(user))
-				fmt.Fprintln(w, string(user))
 			}
-
+			var currentUser User
+			mapstructure.Decode(query.Data(), &currentUser)
+			currentUserData, err := json.Marshal(currentUser)
+			if err != nil {
+				log.Println("Error:", err)
+			}
+			log.Println("Sending user data")
+			log.Println(string(currentUserData))
+			fmt.Fprintln(w, string(currentUserData))
 		}
 
 		if r.Method == "DELETE" {
@@ -223,6 +220,28 @@ func main() {
 			} else {
 				log.Println("User", userId, "deleted at", fsDeleteTime)
 			}
+		}
+	})
+
+	router.HandleFunc("/api/user/google", func(w http.ResponseWriter, r *http.Request) {
+		log.Println("Request type: GET")
+		userGoogleId := r.FormValue("id")
+		log.Println("Retrieving user with Google ID", userGoogleId)
+		query := client.Collection("users").Where("googleid", "==", userGoogleId).Documents(ctx)
+		for {
+			doc, err := query.Next()
+			if err == iterator.Done {
+				break
+			}
+
+			id, err := json.Marshal(doc.Ref.ID)
+			if err != nil {
+				log.Println("Error:", err)
+			}
+			docId := string(id)
+			log.Println("User found. Sending response.")
+			log.Println("Document id", docId)
+			fmt.Fprintln(w, "{ \"id\":", docId, "}")
 		}
 	})
 
@@ -355,7 +374,7 @@ func main() {
 
 	fmt.Println("Server Started at http://localhost:8080")
 	if err := http.ListenAndServe(":8080", handler); err != nil { // for use with above CORS rules
-		// if err := http.ListenAndServe(":8080", router); err != nil {  // for when not using the above CORS rules
+		// if err := http.ListenAndServe(":8080", router); err != nil { // for when not using the above CORS rules
 		log.Fatal(err)
 	}
 }
