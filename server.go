@@ -26,6 +26,12 @@ import (
 	"github.com/rs/cors"
 )
 
+// func setupCorsResponse(w *http.ResponseWriter, req *http.Request) {
+// 	(*w).Header().Set("Access-Control-Allow-Origin", "*")
+// 	(*w).Header().Set("Access-Control-Allow-Methods", "POST, GET, OPTIONS, PUT, DELETE")
+// 	(*w).Header().Set("Access-Control-Allow-Headers", "Accept, Content-Type, Content-Length, Authorization")
+// }
+
 func main() {
 	err := godotenv.Load()
 	if err != nil {
@@ -38,6 +44,38 @@ func main() {
 	// 	w.Header().Set("Access-Control-Allow-Methods", "POST, GET, OPTIONS, PUT, DELETE")
 	// 	w.Header().Set("Access-Control-Allow-Headers", "Accept, Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization, Access-Control-Request-Headers, Access-Control-Request-Method, Connection, Host, Origin, User-Agent, Referer, Cache-Control, X-header")
 	// })
+
+	/////////////////////////////////////////////////////////////////////////////
+	//*************************************************************************//
+	//********************** Firestorm Authentication *************************//
+	//*************************************************************************//
+	/////////////////////////////////////////////////////////////////////////////
+
+	credentialsJson := []byte(os.Getenv("FIRESTORE_JSON"))
+	ctx := context.Background()
+	sa := option.WithCredentialsJSON(credentialsJson)
+	app, err := firebase.NewApp(ctx, nil, sa)
+	if err != nil {
+		log.Fatalln(err)
+	}
+
+	client, err := app.Firestore(ctx)
+	if err != nil {
+		log.Fatalln(err)
+	}
+
+	// This is for retrieving all users in database
+	// iter := client.Collection("users").Documents(ctx)
+	// for {
+	// 	doc, err := iter.Next()
+	// 	if err == iterator.Done {
+	// 		break
+	// 	}
+	// 	if err != nil {
+	// 		log.Fatalf("Failed to iterate: %v", err)
+	// 	}
+	// 	fmt.Println(doc.Data())
+	// }
 
 	/////////////////////////////////////////////////////////////////////////////
 	//*************************************************************************//
@@ -79,52 +117,22 @@ func main() {
 	// })
 
 	// watch socket
-	// Server.On("/watch", func(c *gosocketio.Channel, message Message) string {
-	// 	fmt.Println(message.Text)
-	// 	c.BroadcastTo("Room", "/message", message.Text)
-	// 	return "message sent successfully."
-	// })
+	Server.On("/watch", func(c *gosocketio.Channel, message Message) string {
+		log.Println("in watch socket")
+		// fmt.Println(message.Text)
+		c.BroadcastTo("Room", "/message", message.Text)
+		return "message sent successfully."
+	})
 
 	// watch event
 	Server.On("watch", func(c *gosocketio.Channel, msg Message) string {
 		//send event to all in room
+		log.Println("in watch event")
 		c.BroadcastTo("Room", "message", msg)
 		return "OK"
 	})
 
 	router.Handle("/socket.io/", Server)
-
-	/////////////////////////////////////////////////////////////////////////////
-	//*************************************************************************//
-	//********************** Firestorm Authentication *************************//
-	//*************************************************************************//
-	/////////////////////////////////////////////////////////////////////////////
-
-	credentialsJson := []byte(os.Getenv("FIRESTORE_JSON"))
-	ctx := context.Background()
-	sa := option.WithCredentialsJSON(credentialsJson)
-	app, err := firebase.NewApp(ctx, nil, sa)
-	if err != nil {
-		log.Fatalln(err)
-	}
-
-	client, err := app.Firestore(ctx)
-	if err != nil {
-		log.Fatalln(err)
-	}
-
-	// This is for retrieving all users in database
-	// iter := client.Collection("users").Documents(ctx)
-	// for {
-	// 	doc, err := iter.Next()
-	// 	if err == iterator.Done {
-	// 		break
-	// 	}
-	// 	if err != nil {
-	// 		log.Fatalf("Failed to iterate: %v", err)
-	// 	}
-	// 	fmt.Println(doc.Data())
-	// }
 
 	/////////////////////////////////////////////////////////////////////////////
 	//*************************************************************************//
@@ -369,6 +377,7 @@ func main() {
 	c := cors.New(cors.Options{
 		AllowedOrigins:   []string{"*"},
 		AllowCredentials: true,
+		AllowedMethods:   []string{"POST", "GET", "PUT", "DELETE"},
 	})
 	handler = c.Handler(handler)
 
