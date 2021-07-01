@@ -22,6 +22,11 @@ import (
 	gosocketio "github.com/graarh/golang-socketio"
 	"github.com/graarh/golang-socketio/transport"
 	"github.com/joho/godotenv"
+	"github.com/sendgrid/sendgrid-go"
+	"github.com/sendgrid/sendgrid-go/helpers/mail"
+
+	// "github.com/kevinburke/twilio-go"
+	// "github.com/twilio/twilio-go"
 	"github.com/mitchellh/mapstructure"
 	"github.com/rs/cors"
 )
@@ -213,7 +218,7 @@ func main() {
 				log.Println("Error:", err)
 			}
 			log.Println("Sending user data")
-			log.Println(string(currentUserData))
+			// log.Println(string(currentUserData))
 			fmt.Fprintln(w, string(currentUserData))
 		}
 
@@ -266,7 +271,7 @@ func main() {
 				return
 			}
 			log.Println("Received New Incident:")
-			log.Println(newIncident)
+			// log.Println(newIncident)
 
 			log.Println("Retrieving User Data")
 			userId := r.FormValue("id")
@@ -277,11 +282,11 @@ func main() {
 
 			var currentUser User
 			mapstructure.Decode(query.Data(), &currentUser)
-			log.Println(currentUser)
+			// log.Println(currentUser)
 			log.Println("Updating User Data")
 			currentUser.Incidents = append(currentUser.Incidents, newIncident)
 
-			log.Println(currentUser)
+			// log.Println(currentUser)
 
 			_, err = client.Collection("users").Doc(userId).Update(ctx, []firestore.Update{
 				{
@@ -292,6 +297,26 @@ func main() {
 			if err != nil {
 				log.Println("An error has occurred:", err)
 			}
+
+			// Send notification to user
+			from := mail.NewEmail(os.Getenv("AUTH_EMAIL_NAME"), os.Getenv("AUTH_EMAIL_ADDR"))
+			subject := "Notification from Security Cam"
+			to := mail.NewEmail(currentUser.Name, currentUser.Email)
+			plainTextContent := "Movement has been detected.  Please log in to check status."
+			htmlContent := "<strong>Movement has been detected.  Please log in to check status.</strong>"
+			message := mail.NewSingleEmail(from, subject, to, plainTextContent, htmlContent)
+			client := sendgrid.NewSendClient(os.Getenv("SENDGRID_API_KEY"))
+			response, err := client.Send(message)
+			if err != nil {
+				log.Println("THIS IS AN ERROR")
+				log.Println(err)
+			} else {
+				log.Println("SUCCESS")
+				fmt.Println(response.StatusCode)
+				fmt.Println(response.Body)
+				fmt.Println(response.Headers)
+			}
+
 		}
 
 		if r.Method == "DELETE" {
@@ -306,7 +331,7 @@ func main() {
 
 			var currentUser User
 			mapstructure.Decode(query.Data(), &currentUser)
-			log.Println(currentUser)
+			// log.Println(currentUser)
 			log.Println("Updating User Data")
 
 			i := 0
@@ -361,6 +386,19 @@ func main() {
 			Server.BroadcastTo("Room", "watch", message)
 		}
 	})
+
+	// router.HandleFunc("/api/videotoken", func(w http.ResponseWriter, r *http.Request) {
+	// 	log.Println("Request Type GET")
+	// 	identity := r.FormValue("identity")
+	// 	room := r.FormValue("room")
+	// 	// var client http.Client
+	// 	// token := twilio.NewVideoClient(os.Getenv("TWILIO_ACCOUNT_SID"), os.Getenv("TWILIO_AUTH_TOKEN"), &client)
+	// 	// log.Println(identity, room)
+	// 	// log.Println("token")
+	// 	// log.Println(token)
+	// 	// fmt.Fprintln(token)
+
+	// })
 
 	// /////////////////////////////////////////////////////////////////////////////
 	// //*************************************************************************//
