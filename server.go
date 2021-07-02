@@ -10,8 +10,6 @@ import (
 	"net/http"
 	"os"
 
-	// "os"
-
 	"cloud.google.com/go/firestore"
 	firebase "firebase.google.com/go"
 	"google.golang.org/api/iterator"
@@ -31,12 +29,6 @@ import (
 	"github.com/rs/cors"
 )
 
-// func setupCorsResponse(w *http.ResponseWriter, req *http.Request) {
-// 	(*w).Header().Set("Access-Control-Allow-Origin", "*")
-// 	(*w).Header().Set("Access-Control-Allow-Methods", "POST, GET, OPTIONS, PUT, DELETE")
-// 	(*w).Header().Set("Access-Control-Allow-Headers", "Accept, Content-Type, Content-Length, Authorization")
-// }
-
 func main() {
 	err := godotenv.Load()
 	if err != nil {
@@ -44,11 +36,6 @@ func main() {
 	}
 
 	router := mux.NewRouter()
-	// router.Methods("OPTIONS").HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-	// 	w.Header().Set("Access-Control-Allow-Origin", "*")
-	// 	w.Header().Set("Access-Control-Allow-Methods", "POST, GET, OPTIONS, PUT, DELETE")
-	// 	w.Header().Set("Access-Control-Allow-Headers", "Accept, Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization, Access-Control-Request-Headers, Access-Control-Request-Method, Connection, Host, Origin, User-Agent, Referer, Cache-Control, X-header")
-	// })
 
 	/////////////////////////////////////////////////////////////////////////////
 	//*************************************************************************//
@@ -102,12 +89,12 @@ func main() {
 	})
 
 	// socket disconnection
-	Server.On(gosocketio.OnDisconnection, func(c *gosocketio.Channel) {
-		fmt.Println("Disconnected", c.Id())
+	// Server.On(gosocketio.OnDisconnection, func(c *gosocketio.Channel) {
+	// 	fmt.Println("Disconnected", c.Id())
 
-		// handles when someone closes the tab
-		c.Leave("Room")
-	})
+	// 	// handles when someone closes the tab
+	// 	c.Leave("Room")
+	// })
 
 	// type Message struct {
 	// 	Id string `json:"id"`
@@ -121,6 +108,11 @@ func main() {
 	// 	return "OK"
 	// })
 
+	type Hello struct {
+		Name    string
+		Message string
+	}
+
 	// watch socket
 	Server.On("/watch", func(c *gosocketio.Channel, message Message) string {
 		log.Println("in watch socket")
@@ -130,7 +122,7 @@ func main() {
 	})
 
 	// watch event
-	Server.On("watch", func(c *gosocketio.Channel, msg Message) string {
+	Server.On("watch", func(c *gosocketio.Channel, msg Hello) string {
 		//send event to all in room
 		log.Println("in watch event")
 		c.BroadcastTo("Room", "message", msg)
@@ -303,6 +295,7 @@ func main() {
 			subject := "Notification from Security Cam"
 			to := mail.NewEmail(currentUser.Name, currentUser.Email)
 			plainTextContent := "Movement has been detected.  Please log in to check status."
+			// htmlContent := "<img src=" + newIncident.Image + "alt=\"img\" />"
 			htmlContent := "<strong>Movement has been detected.  Please log in to check status.</strong>"
 			message := mail.NewSingleEmail(from, subject, to, plainTextContent, htmlContent)
 			client := sendgrid.NewSendClient(os.Getenv("SENDGRID_API_KEY"))
@@ -407,8 +400,9 @@ func main() {
 	// /////////////////////////////////////////////////////////////////////////////
 
 	// For serving static files
-	// fileServer := http.FileServer(http.Dir("./static"))
+	// fileServer := http.FileServer(http.Dir("./build"))
 	// http.Handle("/", fileServer)
+	// router.Handle("/", fileServer)
 
 	// Extra CORS rules just in case
 	handler := cors.Default().Handler(router)
