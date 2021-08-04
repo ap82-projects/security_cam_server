@@ -1,1 +1,1 @@
-web: webapphr
+web: security_cam_server
