@@ -89,12 +89,12 @@ func main() {
 	})
 
 	// socket disconnection
-	// Server.On(gosocketio.OnDisconnection, func(c *gosocketio.Channel) {
-	// 	fmt.Println("Disconnected", c.Id())
+	Server.On(gosocketio.OnDisconnection, func(c *gosocketio.Channel) {
+		fmt.Println("Disconnected", c.Id())
 
-	// 	// handles when someone closes the tab
-	// 	c.Leave("Room")
-	// })
+		// handles when someone closes the tab
+		c.Leave("Room")
+	})
 
 	// type Message struct {
 	// 	Id string `json:"id"`
@@ -116,7 +116,7 @@ func main() {
 	// watch socket
 	Server.On("/watch", func(c *gosocketio.Channel, message Message) string {
 		log.Println("in watch socket")
-		// fmt.Println(message.Text)
+		fmt.Println(message.Text)
 		c.BroadcastTo("Room", "/message", message.Text)
 		return "message sent successfully."
 	})
@@ -409,7 +409,7 @@ func main() {
 	c := cors.New(cors.Options{
 		AllowedOrigins:   []string{"*"},
 		AllowCredentials: true,
-		AllowedMethods:   []string{"POST", "GET", "PUT", "DELETE"},
+		AllowedMethods:   []string{"POST", "GET", "PUT", "DELETE", "OPTIONS"},
 	})
 	handler = c.Handler(handler)
 
