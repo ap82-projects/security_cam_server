@@ -1,4 +1,4 @@
-module example.com/user/security_cam
+module github.com/ap82-projects/security_cam_server
 
 go 1.16
 

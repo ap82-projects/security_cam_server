@@ -1,1 +1,1 @@
-web: security_cam_server
+web: security-cam-server
